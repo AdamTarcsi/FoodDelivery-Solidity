@@ -15,8 +15,8 @@ contract FoodDelivery is Ownable {
   mapping (uint => address) public foodToRestaurant;
   mapping (address => uint) private customerOrderCount;
   mapping (address => uint) private restaurantOrderCount;
-  mapping (uint => address) private orderToCustomer;
-  mapping (uint => address) private orderToRestaurant;
+  mapping (uint => address) public orderToCustomer;
+  mapping (uint => address) public orderToRestaurant;
   mapping (address => uint) public successfulDelivery;
 
   event NewFood(uint foodId, string name, address restaurant);
@@ -38,7 +38,7 @@ contract FoodDelivery is Ownable {
   }
 
   Food[] public foods;
-  Order[] public orders;
+  Order[] private orders;
 
   bool public paused = false;
 
@@ -147,12 +147,13 @@ contract FoodDelivery is Ownable {
    * @param _name The name of the new food.
    * @param _price The price of the new food.
    */
-  function newFood(string _name, uint _price) external whenNotPaused onlyRestaurant {
+  function newFood(string _name, uint _price) external whenNotPaused onlyRestaurant returns (uint) {
       require(bytes(_name).length != 0);
       uint id = foods.push(Food(_name, _price, 1))-1;
       foodToRestaurant[id] = msg.sender;
       restaurantFoodCount[msg.sender]++;
       emit NewFood(id, _name, msg.sender);
+      return id;
   }
 
   /**
@@ -209,7 +210,7 @@ contract FoodDelivery is Ownable {
    * @dev Create a new food order.
    * @param _foodId The id number of the food item.
    */
-  function newOrder(uint _foodId) external whenNotPaused onlyCustomer {
+  function newOrder(uint _foodId) external whenNotPaused onlyCustomer returns (uint) {
       require(foods[_foodId].avail == 1);
       uint id = orders.push(Order(_foodId, 0, 0))-1;
       orderToCustomer[id] = msg.sender;
@@ -218,6 +219,7 @@ contract FoodDelivery is Ownable {
       restaurantOrderCount[foodToRestaurant[_foodId]]++;
       transferToEscrow(id);
       emit NewOrder(id, _foodId, foods[orders[id].foodId].price, msg.sender, orderToRestaurant[id]);
+      return id;
   }
 
   /**
@@ -271,12 +273,30 @@ contract FoodDelivery is Ownable {
   }
 
   /**
-   * @dev Allows the user to see their own balance
+   * @dev Allows the user to see their own balance.
    * @return The balance of the user.
    */
   function myBalance() constant public returns (uint) {
       require(userTypes[msg.sender] == 1 || userTypes[msg.sender] == 2, 'Register as a user first!');
       return balances[msg.sender];
+  }
+
+  /**
+   * @dev Allows the user to see their user type.
+   * @return The user type of the user.
+   */
+  function myUserType() constant public returns (uint) {
+      return userTypes[msg.sender];
+  }
+
+  /**
+   * @dev Allows the user to check their order status.
+   * @param _orderId The target order id.
+   * @return The current order status.
+   */
+  function myOrderStatus(uint _orderId) constant public returns (uint8) {
+      require(userTypes[msg.sender] == 1 || userTypes[msg.sender] == 2 && orderToCustomer[_orderId] == msg.sender || orderToRestaurant[_orderId] == msg.sender);
+      return orders[_orderId].status;
   }
 
   /* Private Functions */
